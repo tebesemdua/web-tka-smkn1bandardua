@@ -1,0 +1,32 @@
+ID,Nama Inisial Guru,Mata Pelajaran,NIP Dummy,Username Dummy,Email Dummy,Password Dummy,Status
+GRU-001,Guru Inisial G-01,KEJURUAN TP,198501012010011001,guru001,guru001@smkn1bandardua.sch.id,gurupass001,Aktif
+GRU-002,Guru Inisial G-02,KEJURUAN TKJ,198501012010011002,guru002,guru002@smkn1bandardua.sch.id,gurupass002,Sedang Mengajar
+GRU-003,Guru Inisial G-03,KEJURUAN TKJ,198501012010011003,guru003,guru003@smkn1bandardua.sch.id,gurupass003,Sedang Mengajar
+GRU-004,Guru Inisial G-04,KEJURUAN TP,198501012010011004,guru004,guru004@smkn1bandardua.sch.id,gurupass004,Aktif
+GRU-005,Guru Inisial G-05,KEJURUAN TP,198501012010011005,guru005,guru005@smkn1bandardua.sch.id,gurupass005,Aktif
+GRU-006,Guru Inisial G-06,KEJURUAN DPB,198501012010011006,guru006,guru006@smkn1bandardua.sch.id,gurupass006,Aktif
+GRU-007,Guru Inisial G-07,KEJURUAN DPB,198501012010011007,guru007,guru007@smkn1bandardua.sch.id,gurupass007,Aktif
+GRU-008,Guru Inisial G-08,KEJURUAN DPB,198501012010011008,guru008,guru008@smkn1bandardua.sch.id,gurupass008,Aktif
+GRU-009,Guru Inisial G-09,KEJURUAN DPB,198501012010011009,guru009,guru009@smkn1bandardua.sch.id,gurupass009,Aktif
+GRU-010,Guru Inisial G-10,KEJURUAN DPB,198501012010011010,guru010,guru010@smkn1bandardua.sch.id,gurupass010,Aktif
+GRU-011,Guru Inisial G-11,KEJURUAN DPB,198501012010011011,guru011,guru011@smkn1bandardua.sch.id,gurupass011,Aktif
+GRU-012,Guru Inisial G-12,KEJURUAN DPB,198501012010011012,guru012,guru012@smkn1bandardua.sch.id,gurupass012,Aktif
+GRU-013,Guru Inisial G-13,MATEMATIKA,198501012010011013,guru013,guru013@smkn1bandardua.sch.id,gurupass013,Sedang Mengajar
+GRU-014,Guru Inisial G-14,MATEMATIKA,198501012010011014,guru014,guru014@smkn1bandardua.sch.id,gurupass014,Aktif
+GRU-015,Guru Inisial G-15,MATEMATIKA,198501012010011015,guru015,guru015@smkn1bandardua.sch.id,gurupass015,Sedang Mengajar
+GRU-016,Guru Inisial G-16,MATEMATIKA,198501012010011016,guru016,guru016@smkn1bandardua.sch.id,gurupass016,Aktif
+GRU-017,Guru Inisial G-17,MATEMATIKA,198501012010011017,guru017,guru017@smkn1bandardua.sch.id,gurupass017,Aktif
+GRU-018,Guru Inisial G-18,MATEMATIKA,198501012010011018,guru018,guru018@smkn1bandardua.sch.id,gurupass018,Aktif
+GRU-019,Guru Inisial G-19,B. INDONESIA,198501012010011019,guru019,guru019@smkn1bandardua.sch.id,gurupass019,Aktif
+GRU-020,Guru Inisial G-20,B. INDONESIA,198501012010011020,guru020,guru020@smkn1bandardua.sch.id,gurupass020,Sedang Mengajar
+GRU-021,Guru Inisial G-21,B. INDONESIA,198501012010011021,guru021,guru021@smkn1bandardua.sch.id,gurupass021,Sedang Mengajar
+GRU-022,Guru Inisial G-22,B. INDONESIA,198501012010011022,guru022,guru022@smkn1bandardua.sch.id,gurupass022,Aktif
+GRU-023,Guru Inisial G-23,B. INGGRIS,198501012010011023,guru023,guru023@smkn1bandardua.sch.id,gurupass023,Sedang Mengajar
+GRU-024,Guru Inisial G-24,B. INGGRIS,198501012010011024,guru024,guru024@smkn1bandardua.sch.id,gurupass024,Sedang Mengajar
+GRU-025,Guru Inisial G-25,KEJURUAN TBSM,198501012010011025,guru025,guru025@smkn1bandardua.sch.id,gurupass025,Sedang Mengajar
+GRU-026,Guru Inisial G-26,KEJURUAN TBSM,198501012010011026,guru026,guru026@smkn1bandardua.sch.id,gurupass026,Aktif
+GRU-027,Guru Inisial G-27,KEJURUAN TBSM,198501012010011027,guru027,guru027@smkn1bandardua.sch.id,gurupass027,Aktif
+GRU-028,Guru Inisial G-28,KEJURUAN TBSM,198501012010011028,guru028,guru028@smkn1bandardua.sch.id,gurupass028,Aktif
+GRU-029,Guru Inisial G-29,KEJURUAN TKRO,198501012010011029,guru029,guru029@smkn1bandardua.sch.id,gurupass029,Aktif
+GRU-030,Guru Inisial G-30,KEJURUAN TKRO,198501012010011030,guru030,guru030@smkn1bandardua.sch.id,gurupass030,Aktif
+GRU-031,Guru Inisial G-31,KEJURUAN TKRO,198501012010011031,guru031,guru031@smkn1bandardua.sch.id,gurupass031,Aktif
