@@ -1,17 +1,20 @@
 import { Redis } from '@upstash/redis';
 
-// Mendukung konfigurasi otomatis Vercel Storage:
-// 1. Vercel KV: KV_REST_API_URL & KV_REST_API_TOKEN
-// 2. Upstash Redis Marketplace: UPSTASH_REDIS_REST_URL & UPSTASH_REDIS_REST_TOKEN
-
+// Support semua varian prefix Vercel (KV, UPSTASH_REDIS, STORAGE)
 const redisUrl = 
   process.env.KV_REST_API_URL || 
   process.env.UPSTASH_REDIS_REST_URL || 
+  process.env.STORAGE_REST_API_URL ||
+  process.env.REDIS_REST_API_URL ||
+  process.env.UPSTASH_KV_REST_API_URL ||
   '';
 
 const redisToken = 
   process.env.KV_REST_API_TOKEN || 
   process.env.UPSTASH_REDIS_REST_TOKEN || 
+  process.env.STORAGE_REST_API_TOKEN ||
+  process.env.REDIS_REST_API_TOKEN ||
+  process.env.UPSTASH_KV_REST_API_TOKEN ||
   '';
 
 export const isRedisConfigured = Boolean(redisUrl && redisToken && redisUrl.startsWith('http'));
@@ -23,7 +26,6 @@ export const redis = isRedisConfigured
     })
   : null;
 
-// Prefix keys untuk database SMKN 1 Bandar Dua di Redis
 export const REDIS_KEYS = {
   STUDENTS: 'tka:smkn1:students',
   TEACHERS: 'tka:smkn1:teachers',
