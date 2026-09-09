@@ -74,6 +74,9 @@ export default function Home() {
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>(INITIAL_ATTENDANCE);
   const [teacherAttendanceRecords, setTeacherAttendanceRecords] = useState<TeacherAttendanceRecord[]>(INITIAL_TEACHER_ATTENDANCE);
 
+  const [isCloudConnected, setIsCloudConnected] = useState<boolean | null>(null);
+  const [cloudStatusMessage, setCloudStatusMessage] = useState<string>('');
+
   // Initialize data from localStorage & Upstash Redis on client mount
   useEffect(() => {
     // Check if user actively logged in previously with is_authenticated flag
@@ -110,7 +113,23 @@ export default function Home() {
     setTeacherAttendanceRecords(localTeacherAttendance);
     setVisitorStats(localVisitorStats);
 
-    // Background fetch from Upstash Redis Cloud
+    // Background fetch from Upstash Redis Cloud + check connection status
+    fetch('/api/sync', { cache: 'no-store' })
+      .then(res => res.json())
+      .then(json => {
+        if (json.configured === false) {
+          setIsCloudConnected(false);
+          setCloudStatusMessage(json.message || 'Database belum terhubung');
+        } else if (json.configured === true) {
+          setIsCloudConnected(true);
+          setCloudStatusMessage('Terhubung ke Cloud Database');
+        }
+      })
+      .catch(() => {
+        setIsCloudConnected(false);
+        setCloudStatusMessage('Gagal cek koneksi database');
+      });
+
     fetchAllDataFromRedis().then((remoteData) => {
       if (remoteData) {
         if (remoteData.students && remoteData.students.length > 0) {
@@ -145,11 +164,60 @@ export default function Home() {
   };
 
   const handleImportStudents = (newStudents: Student[]) => {
-    const updated = [...students, ...newStudents];
+    // Deduplikasi berdasarkan NISN agar tidak dobel saat import berulang
+    const existingNisnSet = new Set(students.map(s => s.nisn));
+    const uniqueNew = newStudents.filter(s => !existingNisnSet.has(s.nisn));
+    const merged = [...students, ...uniqueNew];
+    // Jika NISN sudah ada, update data lamanya (untuk kasus edit via Excel)
+    const finalList = merged.map(s => {
+      const updatedVersion = newStudents.find(ns => ns.nisn === s.nisn);
+      return updatedVersion ? { ...s, ...updatedVersion, id: s.id } : s;
+    });
+    // Tambahkan yang benar-benar baru yang tidak ada di merged sebelumnya
+    const trulyNew = newStudents.filter(ns => !students.some(s => s.nisn === ns.nisn));
+    const finalWithNew = [...finalList, ...trulyNew.filter(ns => !finalList.some(s => s.nisn === ns.nisn))];
+    
+    // Simpler: buat map by nisn
+    const mapByNisn = new Map<string, Student>();
+    students.forEach(s => mapByNisn.set(s.nisn, s));
+    newStudents.forEach(ns => {
+      const existing = mapByNisn.get(ns.nisn);
+      if (existing) {
+        mapByNisn.set(ns.nisn, { ...existing, ...ns, id: existing.id });
+      } else {
+        mapByNisn.set(ns.nisn, ns);
+      }
+    });
+    const updated = Array.from(mapByNisn.values());
+    
     setStudents(updated);
     setStoredData('students', updated);
-    syncStudentsToCloud(newStudents);
+    syncStudentsToCloud(updated);
     syncRedis.saveStudents(updated);
+  };
+
+  const handleEditStudent = (updatedStudent: Student) => {
+    const updated = students.map(s => s.id === updatedStudent.id ? updatedStudent : s);
+    setStudents(updated);
+    setStoredData('students', updated);
+    // Sync ke cloud - PENTING: ini yang bikin sinkron antar perangkat
+    syncStudentsToCloud(updated);
+    syncRedis.saveStudents(updated);
+  };
+
+  const handleDeleteStudent = (studentId: string) => {
+    const updated = students.filter(s => s.id !== studentId);
+    setStudents(updated);
+    setStoredData('students', updated);
+    syncStudentsToCloud(updated);
+    syncRedis.saveStudents(updated);
+  };
+
+  const handleBulkUpdateStudents = (updatedList: Student[]) => {
+    setStudents(updatedList);
+    setStoredData('students', updatedList);
+    syncStudentsToCloud(updatedList);
+    syncRedis.saveStudents(updatedList);
   };
 
   const handleRecordTeacherAttendance = (record: TeacherAttendanceRecord) => {
@@ -284,6 +352,31 @@ export default function Home() {
         onLogout={handleLogout}
       />
 
+      {/* Cloud Connection Warning Banner - PENTING UNTUK FIX BUG */}
+      {isCloudConnected === false && (
+        <div className="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 pt-6">
+          <div className="bg-amber-50 border-2 border-amber-300 rounded-2xl p-4 flex items-start gap-3 shadow-sm">
+            <div className="text-2xl">⚠️</div>
+            <div className="flex-1">
+              <h4 className="font-bold text-amber-900 text-sm">Database Cloud Belum Terhubung - Data Hanya Tersimpan di Perangkat Ini!</h4>
+              <p className="text-xs text-amber-800 mt-1 leading-relaxed">
+                Penyebab edit tidak sinkron: <strong>{cloudStatusMessage}</strong>. Vercel belum punya ENV <code>KV_REST_API_URL</code> / <code>UPSTASH_REDIS_REST_URL</code>. 
+                Solusi: Masuk ke Vercel Dashboard → Project web-tka-three → Storage → Create Database → Upstash Redis / Vercel KV → Connect → Redeploy.
+                Setelah itu edit siswa akan sinkron ke semua perangkat.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+      {isCloudConnected === true && (
+        <div className="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 pt-6">
+          <div className="bg-emerald-50 border border-emerald-200 rounded-2xl px-4 py-2.5 flex items-center gap-2 text-xs">
+            <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span>
+            <span className="font-bold text-emerald-800">Cloud Database Terhubung: {cloudStatusMessage} - Data sinkron antar perangkat</span>
+          </div>
+        </div>
+      )}
+
       {/* Main Content Body: Tampilan Setelah Login */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
         {/* TAB 1: BERANDA */}
@@ -333,6 +426,10 @@ export default function Home() {
               currentUser={currentUser}
               onUpdateAttendance={handleUpdateAttendance}
               onImportStudents={handleImportStudents}
+              onEditStudent={handleEditStudent}
+              onDeleteStudent={handleDeleteStudent}
+              onBulkUpdateStudents={handleBulkUpdateStudents}
+              isCloudConnected={isCloudConnected}
             />
           </div>
         )}
