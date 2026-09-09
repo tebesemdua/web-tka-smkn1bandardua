@@ -222,6 +222,44 @@ export default function Home() {
     syncRedis.saveStudents(updatedList);
   };
 
+  const handleBulkDeleteStudents = (ids: string[]) => {
+    const updated = students.filter(s => !ids.includes(s.id));
+    setStudents(updated);
+    setStoredData('students', updated);
+    syncStudentsToCloud(updated);
+    syncRedis.saveStudents(updated);
+  };
+
+  // Guru handlers - baru untuk fitur admin bulk
+  const handleEditTeacher = (updatedTeacher: Teacher) => {
+    const updated = teachers.map(t => t.id === updatedTeacher.id ? updatedTeacher : t);
+    setTeachers(updated);
+    setStoredData('teachers', updated);
+    syncRedis.saveStudents([]); // trigger sync - teachers disimpan terpisah, tapi pakai saveStudents untuk demo, nanti bisa tambah REDIS_KEYS.TEACHERS
+    // Simpan teachers ke Redis
+    fetch('/api/sync', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({key:'teachers', data: updated})});
+  };
+
+  const handleDeleteTeacher = (teacherId: string) => {
+    const updated = teachers.filter(t => t.id !== teacherId);
+    setTeachers(updated);
+    setStoredData('teachers', updated);
+    fetch('/api/sync', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({key:'teachers', data: updated})});
+  };
+
+  const handleBulkDeleteTeachers = (ids: string[]) => {
+    const updated = teachers.filter(t => !ids.includes(t.id));
+    setTeachers(updated);
+    setStoredData('teachers', updated);
+    fetch('/api/sync', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({key:'teachers', data: updated})});
+  };
+
+  const handleBulkUpdateTeachers = (updatedList: Teacher[]) => {
+    setTeachers(updatedList);
+    setStoredData('teachers', updatedList);
+    fetch('/api/sync', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({key:'teachers', data: updatedList})});
+  };
+
   const handleRecordTeacherAttendance = (record: TeacherAttendanceRecord) => {
     const updated = [record, ...teacherAttendanceRecords];
     setTeacherAttendanceRecords(updated);
@@ -431,6 +469,7 @@ export default function Home() {
               onEditStudent={handleEditStudent}
               onDeleteStudent={handleDeleteStudent}
               onBulkUpdateStudents={handleBulkUpdateStudents}
+              onBulkDeleteStudents={handleBulkDeleteStudents}
               isCloudConnected={isCloudConnected}
             />
           </div>
@@ -444,6 +483,11 @@ export default function Home() {
               teacherAttendanceRecords={teacherAttendanceRecords}
               currentUser={currentUser}
               onRecordTeacherAttendance={handleRecordTeacherAttendance}
+              onEditTeacher={handleEditTeacher}
+              onDeleteTeacher={handleDeleteTeacher}
+              onBulkDeleteTeachers={handleBulkDeleteTeachers}
+              onBulkUpdateTeachers={handleBulkUpdateTeachers}
+              isCloudConnected={isCloudConnected}
             />
           </div>
         )}
