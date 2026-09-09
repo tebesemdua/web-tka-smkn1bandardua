@@ -7,19 +7,15 @@ import {
   Upload, 
   Download, 
   CheckCircle2, 
-  XCircle, 
-  Clock, 
-  AlertCircle, 
   Search, 
-  Filter, 
   FileSpreadsheet, 
-  UserCheck, 
-  Plus,
   Save,
-  Trash2,
-  Calendar,
   Sparkles,
-  FileDown
+  FileDown,
+  Pencil,
+  Trash2,
+  X,
+  AlertTriangle
 } from 'lucide-react';
 import { Student, AttendanceRecord, User } from '../types';
 
@@ -29,6 +25,10 @@ interface AttendanceSiswaSectionProps {
   currentUser: User;
   onUpdateAttendance: (records: AttendanceRecord[]) => void;
   onImportStudents: (newStudents: Student[]) => void;
+  onEditStudent?: (student: Student) => void;
+  onDeleteStudent?: (id: string) => void;
+  onBulkUpdateStudents?: (students: Student[]) => void;
+  isCloudConnected?: boolean | null;
 }
 
 export const AttendanceSiswaSection: React.FC<AttendanceSiswaSectionProps> = ({
@@ -36,22 +36,28 @@ export const AttendanceSiswaSection: React.FC<AttendanceSiswaSectionProps> = ({
   attendanceRecords,
   currentUser,
   onUpdateAttendance,
-  onImportStudents
+  onImportStudents,
+  onEditStudent,
+  onDeleteStudent,
+  isCloudConnected
 }) => {
-  const [selectedClassId, setSelectedClassId] = useState<string>('XII TKJ 1');
+  const [selectedClassId, setSelectedClassId] = useState<string>('all');
   const [selectedMajor, setSelectedMajor] = useState<string>('all');
   const [attendanceDate, setAttendanceDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [selectedSession, setSelectedSession] = useState<string>('Sesi Malam (20:15 - 21:00 WIB)');
   const [searchQuery, setSearchQuery] = useState('');
   
-  // Local state for today's active session markings
   const [currentMarkings, setCurrentMarkings] = useState<Record<string, { status: 'hadir' | 'sakit' | 'izin' | 'alpa'; notes: string }>>({});
   const [savedFeedback, setSavedFeedback] = useState('');
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [parsedExcelStudents, setParsedExcelStudents] = useState<Student[]>([]);
   const [excelFileName, setExcelFileName] = useState('');
 
-  // 7 Kelas Resmi SMKN 1 Bandar Dua
+  // Edit states - INI FITUR BARU UNTUK FIX BUG EDIT
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingStudent, setEditingStudent] = useState<Student | null>(null);
+  const [editForm, setEditForm] = useState<Partial<Student>>({});
+
   const classList = [
     { id: 'all', label: 'Semua 7 Kelas XII' },
     { id: 'XII TKJ 1', label: 'XII TKJ 1 (Teknik Komputer & Jaringan)' },
@@ -63,7 +69,6 @@ export const AttendanceSiswaSection: React.FC<AttendanceSiswaSectionProps> = ({
     { id: 'XII DPB', label: 'XII DPB (Desain Pemodelan Bangunan)' },
   ];
 
-  // Filter students based on selected class, major, and search
   const filteredStudents = students.filter(s => {
     const matchesClass = selectedClassId === 'all' || s.classId === selectedClassId;
     const matchesMajor = selectedMajor === 'all' || s.major === selectedMajor;
@@ -71,7 +76,6 @@ export const AttendanceSiswaSection: React.FC<AttendanceSiswaSectionProps> = ({
     return matchesClass && matchesMajor && matchesSearch;
   });
 
-  // Get or initialize status for a student
   const getStudentStatus = (studentId: string) => {
     if (currentMarkings[studentId]) {
       return currentMarkings[studentId];
@@ -135,11 +139,59 @@ export const AttendanceSiswaSection: React.FC<AttendanceSiswaSectionProps> = ({
     });
 
     onUpdateAttendance(newRecords);
-    setSavedFeedback('Data absensi les malam berhasil disimpan ke sistem!');
-    setTimeout(() => setSavedFeedback(''), 3000);
+    setSavedFeedback('Data absensi les malam berhasil disimpan ke sistem!' + (isCloudConnected === false ? ' (Tapi hanya lokal, cloud belum terhubung!)' : ' dan sinkron ke cloud!'));
+    setTimeout(() => setSavedFeedback(''), 4000);
   };
 
-  // Excel Upload Handler with exact requested columns: NISN, Nama Lengkap, Kelas, Jurusan
+  // === EDIT SISWA - FIX UTAMA ===
+  const openEditModal = (student: Student) => {
+    setEditingStudent(student);
+    setEditForm({
+      nisn: student.nisn,
+      name: student.name,
+      classId: student.classId,
+      major: student.major,
+      email: student.email,
+      phone: student.phone,
+      gender: student.gender
+    });
+    setShowEditModal(true);
+  };
+
+  const handleSaveEdit = () => {
+    if (!editingStudent) return;
+    if (!editForm.name || !editForm.nisn) {
+      alert('Nama dan NISN wajib diisi!');
+      return;
+    }
+    const updated: Student = {
+      ...editingStudent,
+      nisn: editForm.nisn || editingStudent.nisn,
+      name: editForm.name || editingStudent.name,
+      classId: editForm.classId || editingStudent.classId,
+      major: editForm.major || editingStudent.major,
+      email: editForm.email || editingStudent.email,
+      phone: editForm.phone || editingStudent.phone,
+      gender: (editForm.gender as any) || editingStudent.gender,
+    };
+    if (onEditStudent) {
+      onEditStudent(updated);
+      setSavedFeedback(`Data siswa ${updated.name} berhasil diupdate! ${isCloudConnected === false ? '⚠️ Tapi hanya di perangkat ini karena database cloud belum terhubung.' : '✅ Sinkron ke semua perangkat.'}`);
+      setTimeout(() => setSavedFeedback(''), 4000);
+    }
+    setShowEditModal(false);
+    setEditingStudent(null);
+  };
+
+  const handleDelete = (student: Student) => {
+    if (!confirm(`Yakin hapus siswa ${student.name} (${student.nisn})? Data tidak bisa dikembalikan.`)) return;
+    if (onDeleteStudent) {
+      onDeleteStudent(student.id);
+      setSavedFeedback(`Siswa ${student.name} dihapus.`);
+      setTimeout(() => setSavedFeedback(''), 3000);
+    }
+  };
+
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -161,7 +213,6 @@ export const AttendanceSiswaSection: React.FC<AttendanceSiswaSectionProps> = ({
           const classId = String(row['Kelas'] || row['kelas'] || selectedClassId).trim();
           const major = String(row['Jurusan'] || row['jurusan'] || 'TKJ').trim();
           
-          // Auto generate standard belajar.id email for student
           const cleanEmailSlug = name.toLowerCase().replace(/[^a-z0-9]/g, '.').replace(/\.+/g, '.').replace(/^\.|\.$/g, '');
           const email = `${cleanEmailSlug}@siswa.smk.belajar.id`;
 
@@ -193,58 +244,22 @@ export const AttendanceSiswaSection: React.FC<AttendanceSiswaSectionProps> = ({
       onImportStudents(parsedExcelStudents);
       setShowUploadModal(false);
       setParsedExcelStudents([]);
-      alert(`Berhasil mengimpor ${parsedExcelStudents.length} data siswa SMK Negeri 1 Bandar Dua dari Excel!`);
+      alert(`Berhasil mengimpor ${parsedExcelStudents.length} data siswa! ${isCloudConnected === false ? 'Catatan: Karena cloud belum terhubung, data hanya ada di perangkat ini. Aktifkan Vercel KV agar sinkron.' : 'Data akan sinkron ke semua perangkat.'}`);
     }
   };
 
-  // Download Sample Template Excel (Kolom: NISN, Nama Lengkap, Kelas, Jurusan)
   const handleDownloadTemplate = () => {
     const templateData = [
-      {
-        'NISN': '0067489001',
-        'Nama Lengkap': 'Muhammad Rizki Pratama',
-        'Kelas': 'XII TKJ 1',
-        'Jurusan': 'TKJ'
-      },
-      {
-        'NISN': '0067489002',
-        'Nama Lengkap': 'Cut Anisa Zahratunnisa',
-        'Kelas': 'XII TKJ 1',
-        'Jurusan': 'TKJ'
-      },
-      {
-        'NISN': '0067489003',
-        'Nama Lengkap': 'Teuku Ryan Hidayat',
-        'Kelas': 'XII TBSM 1',
-        'Jurusan': 'TBSM'
-      },
-      {
-        'NISN': '0067489004',
-        'Nama Lengkap': 'Ahmad Zulfikar',
-        'Kelas': 'XII TKR',
-        'Jurusan': 'TKRO'
-      },
-      {
-        'NISN': '0067489005',
-        'Nama Lengkap': 'Nurul Khadijah',
-        'Kelas': 'XII DPB',
-        'Jurusan': 'DPB'
-      },
-      {
-        'NISN': '0067489006',
-        'Nama Lengkap': 'Bilal Al-Farizi',
-        'Kelas': 'XII TP',
-        'Jurusan': 'TP'
-      }
+      { 'NISN': '0067489001', 'Nama Lengkap': 'Muhammad Rizki Pratama', 'Kelas': 'XII TKJ 1', 'Jurusan': 'TKJ' },
+      { 'NISN': '0067489002', 'Nama Lengkap': 'Cut Anisa Zahratunnisa', 'Kelas': 'XII TKJ 1', 'Jurusan': 'TKJ' },
+      { 'NISN': '0067489003', 'Nama Lengkap': 'Teuku Ryan Hidayat', 'Kelas': 'XII TBSM 1', 'Jurusan': 'TBSM' },
     ];
-
     const ws = XLSX.utils.json_to_sheet(templateData);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Template Siswa TKA SMKN 1');
     XLSX.writeFile(wb, 'Format_Import_Siswa_SMKN1_BandarDua.xlsx');
   };
 
-  // Calculate stats for current filter
   const totalCount = filteredStudents.length;
   let presentCount = 0;
   let sickCount = 0;
@@ -263,7 +278,21 @@ export const AttendanceSiswaSection: React.FC<AttendanceSiswaSectionProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* Top Header Card */}
+      {/* Cloud Status Alert - Khusus untuk menjelaskan bug edit */}
+      {isCloudConnected === false && (
+        <div className="bg-red-50 border-2 border-red-300 rounded-2xl p-4 flex gap-3">
+          <AlertTriangle className="w-6 h-6 text-red-600 shrink-0" />
+          <div>
+            <h4 className="font-bold text-red-900 text-sm">⚠️ MODE LOKAL - Edit Tidak Akan Sinkron!</h4>
+            <p className="text-xs text-red-800 mt-1">
+              Database cloud belum terhubung. Penyebab: ENV <code>KV_REST_API_URL</code> belum diset di Vercel. 
+              Akibatnya edit siswa hanya tersimpan di browser kamu saja (localStorage), tidak terlihat di HP/laptop lain.
+              <br/><strong>Fix:</strong> Buat database di Vercel Dashboard → Storage → Create → KV / Upstash Redis → Connect to web-tka-three → Redeploy.
+            </p>
+          </div>
+        </div>
+      )}
+
       <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-200/80">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-slate-100">
           <div>
@@ -273,27 +302,25 @@ export const AttendanceSiswaSection: React.FC<AttendanceSiswaSectionProps> = ({
               </div>
               <div>
                 <h3 className="text-lg font-bold text-slate-900">
-                  Presensi & Absensi Siswa Les TKA Malam Hari
+                  Presensi & Data Siswa Les TKA Malam Hari
                 </h3>
                 <span className="text-xs text-emerald-700 font-semibold">
-                  SMK Negeri 1 Bandar Dua — Periode Les Malam (20:15 - 21:00 WIB)
+                  SMK Negeri 1 Bandar Dua — Edit, Hapus, Import Excel
                 </span>
               </div>
             </div>
             <p className="text-xs text-slate-500 mt-1">
-              Input presensi siswa berdasarakan 7 kelas & 5 jurusan kejuruan, serta fitur import data via upload Excel
+              Kelola 7 kelas & 5 jurusan. Fitur baru: Edit & Hapus siswa sudah sinkron cloud jika KV terhubung.
             </p>
           </div>
 
-          {/* Action Buttons for Upload / Template */}
           <div className="flex flex-wrap items-center gap-2.5">
             <button
               onClick={handleDownloadTemplate}
               className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer border border-slate-200"
-              title="Download contoh format Excel resmi (NISN, Nama Lengkap, Kelas, Jurusan)"
             >
               <FileDown className="w-4 h-4 text-emerald-700" />
-              <span>Download Format Template Excel</span>
+              <span>Template Excel</span>
             </button>
 
             {(currentUser.role === 'admin' || currentUser.role === 'guru') && (
@@ -302,16 +329,15 @@ export const AttendanceSiswaSection: React.FC<AttendanceSiswaSectionProps> = ({
                 className="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
               >
                 <Upload className="w-4 h-4" />
-                <span>Upload File Excel Siswa</span>
+                <span>Upload Excel</span>
               </button>
             )}
           </div>
         </div>
 
-        {/* Filter Controls Bar */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mt-6">
           <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">Pilih Rombongan Belajar (Kelas XII)</label>
+            <label className="block text-xs font-bold text-slate-700 mb-1">Pilih Kelas</label>
             <select
               value={selectedClassId}
               onChange={(e) => setSelectedClassId(e.target.value)}
@@ -324,23 +350,23 @@ export const AttendanceSiswaSection: React.FC<AttendanceSiswaSectionProps> = ({
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">Konsentrasi Keahlian / Jurusan</label>
+            <label className="block text-xs font-bold text-slate-700 mb-1">Jurusan</label>
             <select
               value={selectedMajor}
               onChange={(e) => setSelectedMajor(e.target.value)}
               className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-emerald-500"
             >
               <option value="all">Semua Jurusan</option>
-              <option value="TKJ">TKJ (Teknik Komputer & Jaringan)</option>
-              <option value="TBSM">TBSM (Teknik & Bisnis Sepeda Motor)</option>
-              <option value="TKRO">TKRO (Teknik Kendaraan Ringan Otomotif)</option>
-              <option value="TP">TP (Teknik Pemesinan)</option>
-              <option value="DPB">DPB (Desain Pemodelan Bangunan)</option>
+              <option value="TKJ">TKJ</option>
+              <option value="TBSM">TBSM</option>
+              <option value="TKRO">TKRO</option>
+              <option value="TP">TP</option>
+              <option value="DPB">DPB</option>
             </select>
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">Tanggal Les TKA</label>
+            <label className="block text-xs font-bold text-slate-700 mb-1">Tanggal</label>
             <input
               type="date"
               value={attendanceDate}
@@ -350,19 +376,18 @@ export const AttendanceSiswaSection: React.FC<AttendanceSiswaSectionProps> = ({
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">Waktu / Sesi Belajar</label>
+            <label className="block text-xs font-bold text-slate-700 mb-1">Sesi</label>
             <select
               value={selectedSession}
               onChange={(e) => setSelectedSession(e.target.value)}
               className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-emerald-500"
             >
-              <option value="Sesi Malam (20:15 - 21:00 WIB)">Sesi Malam (20:15 - 21:00 WIB | 45 Menit)</option>
-              <option value="Sesi Pengayaan (19:30 - 20:15 WIB)">Sesi Pengayaan (19:30 - 20:15 WIB)</option>
+              <option value="Sesi Malam (20:15 - 21:00 WIB)">Sesi Malam (20:15 - 21:00)</option>
+              <option value="Sesi Pengayaan (19:30 - 20:15 WIB)">Sesi Pengayaan (19:30 - 20:15)</option>
             </select>
           </div>
         </div>
 
-        {/* Live Attendance Counter */}
         <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mt-6 pt-6 border-t border-slate-100 text-center">
           <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-2xl">
             <span className="text-[11px] font-bold text-emerald-800 uppercase">Hadir</span>
@@ -387,7 +412,6 @@ export const AttendanceSiswaSection: React.FC<AttendanceSiswaSectionProps> = ({
         </div>
       </div>
 
-      {/* Student Attendance List Table */}
       <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-200/80 space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="relative flex-1 max-w-sm">
@@ -396,7 +420,7 @@ export const AttendanceSiswaSection: React.FC<AttendanceSiswaSectionProps> = ({
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Cari nama atau NISN siswa..."
+              placeholder="Cari nama atau NISN..."
               className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500"
             />
           </div>
@@ -434,18 +458,19 @@ export const AttendanceSiswaSection: React.FC<AttendanceSiswaSectionProps> = ({
             <thead>
               <tr className="bg-slate-100/80 text-slate-700 font-bold border-b border-slate-200">
                 <th className="p-3.5 w-12 text-center">No</th>
-                <th className="p-3.5">NISN & Nama Lengkap</th>
-                <th className="p-3.5">Kelas & Jurusan</th>
-                <th className="p-3.5">Akun Belajar.id</th>
-                <th className="p-3.5 text-center w-64">Status Presensi</th>
-                <th className="p-3.5">Jurnal / Catatan Guru</th>
+                <th className="p-3.5">NISN & Nama</th>
+                <th className="p-3.5">Kelas</th>
+                <th className="p-3.5">Kontak</th>
+                <th className="p-3.5 text-center">Presensi</th>
+                <th className="p-3.5">Catatan</th>
+                <th className="p-3.5 text-center">Aksi</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {filteredStudents.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="p-8 text-center text-slate-400">
-                    Tidak ada data siswa ditemukan untuk filter kelas ini. Silakan gunakan tombol <strong>Upload File Excel Siswa</strong> di atas.
+                  <td colSpan={7} className="p-8 text-center text-slate-400">
+                    Tidak ada data siswa. Upload Excel atau pilih filter lain.
                   </td>
                 </tr>
               ) : (
@@ -458,7 +483,7 @@ export const AttendanceSiswaSection: React.FC<AttendanceSiswaSectionProps> = ({
                       <td className="p-3.5 text-center font-bold text-slate-500">{idx + 1}</td>
                       <td className="p-3.5">
                         <div className="font-bold text-slate-900">{student.name}</div>
-                        <div className="text-[11px] text-slate-500 font-mono">NISN: {student.nisn}</div>
+                        <div className="text-[11px] text-slate-500 font-mono">NISN: {student.nisn} | {student.gender}</div>
                       </td>
                       <td className="p-3.5">
                         <span className="font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
@@ -466,59 +491,27 @@ export const AttendanceSiswaSection: React.FC<AttendanceSiswaSectionProps> = ({
                         </span>
                         <div className="text-[10px] text-slate-400 mt-0.5">{student.major}</div>
                       </td>
-                      <td className="p-3.5 font-medium text-slate-600">
-                        {student.email}
+                      <td className="p-3.5 text-[11px] text-slate-600">
+                        <div>{student.email}</div>
+                        <div className="text-slate-400">{student.phone}</div>
                       </td>
                       <td className="p-3.5 text-center">
                         <div className="inline-flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
-                          <button
-                            type="button"
-                            disabled={isReadonly}
-                            onClick={() => handleStatusChange(student.id, 'hadir')}
-                            className={`px-2.5 py-1 rounded-lg font-bold text-[11px] transition-all cursor-pointer ${
-                              mark.status === 'hadir'
-                                ? 'bg-emerald-600 text-white shadow-xs'
-                                : 'text-slate-600 hover:text-emerald-700'
-                            }`}
-                          >
-                            Hadir
-                          </button>
-                          <button
-                            type="button"
-                            disabled={isReadonly}
-                            onClick={() => handleStatusChange(student.id, 'sakit')}
-                            className={`px-2.5 py-1 rounded-lg font-bold text-[11px] transition-all cursor-pointer ${
-                              mark.status === 'sakit'
-                                ? 'bg-blue-600 text-white shadow-xs'
-                                : 'text-slate-600 hover:text-blue-700'
-                            }`}
-                          >
-                            Sakit
-                          </button>
-                          <button
-                            type="button"
-                            disabled={isReadonly}
-                            onClick={() => handleStatusChange(student.id, 'izin')}
-                            className={`px-2.5 py-1 rounded-lg font-bold text-[11px] transition-all cursor-pointer ${
-                              mark.status === 'izin'
-                                ? 'bg-amber-500 text-white shadow-xs'
-                                : 'text-slate-600 hover:text-amber-700'
-                            }`}
-                          >
-                            Izin
-                          </button>
-                          <button
-                            type="button"
-                            disabled={isReadonly}
-                            onClick={() => handleStatusChange(student.id, 'alpa')}
-                            className={`px-2.5 py-1 rounded-lg font-bold text-[11px] transition-all cursor-pointer ${
-                              mark.status === 'alpa'
-                                ? 'bg-rose-600 text-white shadow-xs'
-                                : 'text-slate-600 hover:text-rose-700'
-                            }`}
-                          >
-                            Alpa
-                          </button>
+                          {(['hadir','sakit','izin','alpa'] as const).map(st => (
+                            <button
+                              key={st}
+                              type="button"
+                              disabled={isReadonly}
+                              onClick={() => handleStatusChange(student.id, st)}
+                              className={`px-2 py-1 rounded-lg font-bold text-[10px] capitalize transition-all cursor-pointer ${
+                                mark.status === st
+                                  ? st==='hadir' ? 'bg-emerald-600 text-white' : st==='sakit' ? 'bg-blue-600 text-white' : st==='izin' ? 'bg-amber-500 text-white' : 'bg-rose-600 text-white'
+                                  : 'text-slate-600 hover:text-slate-900'
+                              }`}
+                            >
+                              {st}
+                            </button>
+                          ))}
                         </div>
                       </td>
                       <td className="p-3.5">
@@ -527,9 +520,29 @@ export const AttendanceSiswaSection: React.FC<AttendanceSiswaSectionProps> = ({
                           disabled={isReadonly}
                           value={mark.notes}
                           onChange={(e) => handleNotesChange(student.id, e.target.value)}
-                          placeholder="Catatan keaktifan..."
+                          placeholder="Catatan..."
                           className="w-full px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs"
                         />
+                      </td>
+                      <td className="p-3.5 text-center">
+                        {(currentUser.role === 'admin' || currentUser.role === 'guru') && (
+                          <div className="flex items-center justify-center gap-1">
+                            <button
+                              onClick={() => openEditModal(student)}
+                              className="p-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg border border-blue-200"
+                              title="Edit siswa"
+                            >
+                              <Pencil className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={() => handleDelete(student)}
+                              className="p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-lg border border-rose-200"
+                              title="Hapus siswa"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        )}
                       </td>
                     </tr>
                   );
@@ -538,7 +551,91 @@ export const AttendanceSiswaSection: React.FC<AttendanceSiswaSectionProps> = ({
             </tbody>
           </table>
         </div>
+        <div className="text-[11px] text-slate-400">
+          Total {filteredStudents.length} dari {students.length} siswa. {isCloudConnected===false && '⚠️ Data lokal saja - aktifkan Vercel KV agar sinkron.'}
+        </div>
       </div>
+
+      {/* Modal Edit Siswa - BARU */}
+      {showEditModal && editingStudent && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-100 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-200">
+              <div className="flex items-center gap-2">
+                <Pencil className="w-5 h-5 text-blue-700" />
+                <h3 className="text-base font-bold text-slate-900">Edit Data Siswa</h3>
+              </div>
+              <button onClick={() => setShowEditModal(false)} className="text-slate-400 hover:text-slate-600">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 gap-3 text-xs">
+              <div>
+                <label className="font-bold text-slate-700">NISN</label>
+                <input value={editForm.nisn || ''} onChange={e=>setEditForm({...editForm, nisn:e.target.value})} className="w-full mt-1 p-2.5 bg-slate-50 border border-slate-200 rounded-xl" />
+              </div>
+              <div>
+                <label className="font-bold text-slate-700">Nama Lengkap</label>
+                <input value={editForm.name || ''} onChange={e=>setEditForm({...editForm, name:e.target.value})} className="w-full mt-1 p-2.5 bg-slate-50 border border-slate-200 rounded-xl" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-bold text-slate-700">Kelas</label>
+                  <select value={editForm.classId || ''} onChange={e=>setEditForm({...editForm, classId:e.target.value})} className="w-full mt-1 p-2.5 bg-slate-50 border border-slate-200 rounded-xl">
+                    <option value="XII TKJ 1">XII TKJ 1</option>
+                    <option value="XII TKJ 2">XII TKJ 2</option>
+                    <option value="XII TBSM 1">XII TBSM 1</option>
+                    <option value="XII TBSM 2">XII TBSM 2</option>
+                    <option value="XII TKR">XII TKR</option>
+                    <option value="XII TP">XII TP</option>
+                    <option value="XII DPB">XII DPB</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="font-bold text-slate-700">Jurusan</label>
+                  <select value={editForm.major || ''} onChange={e=>setEditForm({...editForm, major:e.target.value})} className="w-full mt-1 p-2.5 bg-slate-50 border border-slate-200 rounded-xl">
+                    <option value="TKJ">TKJ</option>
+                    <option value="TBSM">TBSM</option>
+                    <option value="TKRO">TKRO</option>
+                    <option value="TP">TP</option>
+                    <option value="DPB">DPB</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="font-bold text-slate-700">Email Belajar.id</label>
+                <input value={editForm.email || ''} onChange={e=>setEditForm({...editForm, email:e.target.value})} className="w-full mt-1 p-2.5 bg-slate-50 border border-slate-200 rounded-xl" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-bold text-slate-700">No HP</label>
+                  <input value={editForm.phone || ''} onChange={e=>setEditForm({...editForm, phone:e.target.value})} className="w-full mt-1 p-2.5 bg-slate-50 border border-slate-200 rounded-xl" />
+                </div>
+                <div>
+                  <label className="font-bold text-slate-700">Gender</label>
+                  <select value={editForm.gender || 'L'} onChange={e=>setEditForm({...editForm, gender:e.target.value as any})} className="w-full mt-1 p-2.5 bg-slate-50 border border-slate-200 rounded-xl">
+                    <option value="L">Laki-laki</option>
+                    <option value="P">Perempuan</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex gap-2 pt-3 border-t border-slate-100">
+              <button onClick={()=>setShowEditModal(false)} className="flex-1 px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold">Batal</button>
+              <button onClick={handleSaveEdit} className="flex-1 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold flex items-center justify-center gap-1.5">
+                <Save className="w-4 h-4" /> Simpan Perubahan
+              </button>
+            </div>
+            {isCloudConnected===false && (
+              <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-xl p-2.5">
+                ⚠️ Cloud belum terhubung, perubahan hanya tersimpan di perangkat ini. Aktifkan Vercel KV/Upstash Redis agar sinkron ke semua perangkat.
+              </p>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Modal Upload Excel */}
       {showUploadModal && (
@@ -547,85 +644,42 @@ export const AttendanceSiswaSection: React.FC<AttendanceSiswaSectionProps> = ({
             <div className="flex items-center justify-between pb-3 border-b border-slate-200">
               <div className="flex items-center gap-2">
                 <FileSpreadsheet className="w-5 h-5 text-emerald-700" />
-                <h3 className="text-base font-bold text-slate-900">
-                  Import Data Siswa SMKN 1 Bandar Dua via Excel
-                </h3>
+                <h3 className="text-base font-bold text-slate-900">Import Data Siswa via Excel</h3>
               </div>
-              <button
-                onClick={() => {
-                  setShowUploadModal(false);
-                  setParsedExcelStudents([]);
-                }}
-                className="text-slate-400 hover:text-slate-600 font-bold"
-              >
-                ✕
-              </button>
+              <button onClick={() => { setShowUploadModal(false); setParsedExcelStudents([]); }} className="text-slate-400 hover:text-slate-600 font-bold">✕</button>
             </div>
 
             <div className="space-y-4 text-xs">
               <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-start gap-3">
                 <Sparkles className="w-5 h-5 text-emerald-700 shrink-0 mt-0.5" />
                 <div>
-                  <h4 className="font-bold text-emerald-900">Struktur Kolom Excel yang Dibutuhkan:</h4>
-                  <p className="text-emerald-800 text-[11px] mt-0.5">
-                    File spreadsheet Excel Anda cukup memuat 4 kolom utama: <strong>NISN</strong>, <strong>Nama Lengkap</strong>, <strong>Kelas</strong> (contoh: <em>XII TKJ 1, XII TBSM 1, XII TKR</em>), dan <strong>Jurusan</strong> (contoh: <em>TKJ, TBSM, TKRO, TP, DPB</em>).
-                  </p>
-                  <p className="text-emerald-700 text-[10px] mt-1 italic">
-                    *Akun email @siswa.smk.belajar.id dan password seragam default (&ldquo;belajar123&rdquo;) akan otomatis dibuatkan oleh sistem untuk seluruh siswa.
-                  </p>
+                  <h4 className="font-bold text-emerald-900">Kolom Excel: NISN, Nama Lengkap, Kelas, Jurusan</h4>
+                  <p className="text-emerald-800 text-[11px] mt-0.5">Jika NISN sudah ada, data akan di-update (bisa dipakai untuk edit massal).</p>
                 </div>
               </div>
 
-              {/* Upload Input Box */}
               <div className="border-2 border-dashed border-slate-300 hover:border-emerald-500 rounded-2xl p-6 text-center transition-colors bg-slate-50">
-                <input
-                  type="file"
-                  id="excelInput"
-                  accept=".xlsx, .xls, .csv"
-                  onChange={handleFileUpload}
-                  className="hidden"
-                />
+                <input type="file" id="excelInput" accept=".xlsx, .xls, .csv" onChange={handleFileUpload} className="hidden" />
                 <label htmlFor="excelInput" className="cursor-pointer block">
                   <Upload className="w-8 h-8 mx-auto text-emerald-700 mb-2" />
-                  <span className="font-bold text-slate-800 block">
-                    {excelFileName ? excelFileName : 'Klik untuk Memilih File Excel (.xlsx / .csv)'}
-                  </span>
-                  <span className="text-[11px] text-slate-500 mt-1 block">
-                    File akan langsung dibaca dan divalidasi secara lokal di browser
-                  </span>
+                  <span className="font-bold text-slate-800 block">{excelFileName ? excelFileName : 'Klik untuk Pilih File Excel'}</span>
                 </label>
               </div>
 
-              {/* Preview parsed students */}
               {parsedExcelStudents.length > 0 && (
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <span className="font-bold text-slate-800">
-                      Pratinjau Data Ditemukan ({parsedExcelStudents.length} Siswa):
-                    </span>
-                    <span className="text-[11px] text-emerald-700 font-bold">✓ Siap Diimpor</span>
+                    <span className="font-bold text-slate-800">Preview {parsedExcelStudents.length} Siswa</span>
+                    <span className="text-[11px] text-emerald-700 font-bold">✓ Siap</span>
                   </div>
-
                   <div className="max-h-48 overflow-y-auto border border-slate-200 rounded-xl">
                     <table className="w-full text-left text-[11px]">
                       <thead className="bg-slate-100 font-bold text-slate-700 sticky top-0">
-                        <tr>
-                          <th className="p-2">NISN</th>
-                          <th className="p-2">Nama Lengkap</th>
-                          <th className="p-2">Kelas</th>
-                          <th className="p-2">Jurusan</th>
-                          <th className="p-2">Email Otomatis</th>
-                        </tr>
+                        <tr><th className="p-2">NISN</th><th className="p-2">Nama</th><th className="p-2">Kelas</th><th className="p-2">Jurusan</th></tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
                         {parsedExcelStudents.map((s, idx) => (
-                          <tr key={idx}>
-                            <td className="p-2 font-mono">{s.nisn}</td>
-                            <td className="p-2 font-bold">{s.name}</td>
-                            <td className="p-2">{s.classId}</td>
-                            <td className="p-2">{s.major}</td>
-                            <td className="p-2 text-slate-500">{s.email}</td>
-                          </tr>
+                          <tr key={idx}><td className="p-2 font-mono">{s.nisn}</td><td className="p-2 font-bold">{s.name}</td><td className="p-2">{s.classId}</td><td className="p-2">{s.major}</td></tr>
                         ))}
                       </tbody>
                     </table>
@@ -634,34 +688,12 @@ export const AttendanceSiswaSection: React.FC<AttendanceSiswaSectionProps> = ({
               )}
 
               <div className="flex items-center justify-between gap-3 pt-3 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={handleDownloadTemplate}
-                  className="text-xs font-bold text-emerald-700 hover:underline flex items-center gap-1"
-                >
-                  <Download className="w-3.5 h-3.5" />
-                  <span>Download Format Template 4 Kolom</span>
+                <button type="button" onClick={handleDownloadTemplate} className="text-xs font-bold text-emerald-700 hover:underline flex items-center gap-1">
+                  <Download className="w-3.5 h-3.5" /><span>Download Template</span>
                 </button>
-
                 <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowUploadModal(false);
-                      setParsedExcelStudents([]);
-                    }}
-                    className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold"
-                  >
-                    Batal
-                  </button>
-                  <button
-                    type="button"
-                    disabled={parsedExcelStudents.length === 0}
-                    onClick={handleConfirmImport}
-                    className="px-5 py-2 bg-emerald-700 hover:bg-emerald-800 disabled:bg-slate-300 text-white rounded-xl font-bold shadow-md cursor-pointer disabled:cursor-not-allowed"
-                  >
-                    Simpan & Terapkan ({parsedExcelStudents.length} Siswa)
-                  </button>
+                  <button type="button" onClick={() => { setShowUploadModal(false); setParsedExcelStudents([]); }} className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold">Batal</button>
+                  <button type="button" disabled={parsedExcelStudents.length === 0} onClick={handleConfirmImport} className="px-5 py-2 bg-emerald-700 hover:bg-emerald-800 disabled:bg-slate-300 text-white rounded-xl font-bold shadow-md">Simpan ({parsedExcelStudents.length})</button>
                 </div>
               </div>
             </div>
