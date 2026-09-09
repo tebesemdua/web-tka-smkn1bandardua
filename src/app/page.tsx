@@ -132,19 +132,21 @@ export default function Home() {
 
     fetchAllDataFromRedis().then((remoteData) => {
       if (remoteData) {
-        if (remoteData.students && remoteData.students.length > 0) {
+        // FIX: Izinkan array kosong [] sebagai data valid agar hapus semua bisa sinkron ke semua perangkat
+        // Sebelumnya cek length >0, jadi kalau cloud [] tidak pernah di-sync dan fallback ke INITIAL (19 siswa)
+        if (remoteData.students && Array.isArray(remoteData.students)) {
           setStudents(remoteData.students);
           setStoredData('students', remoteData.students);
         }
-        if (remoteData.attendance && remoteData.attendance.length > 0) {
+        if (remoteData.attendance && Array.isArray(remoteData.attendance)) {
           setAttendanceRecords(remoteData.attendance);
           setStoredData('attendance', remoteData.attendance);
         }
-        if (remoteData.teacherAttendance && remoteData.teacherAttendance.length > 0) {
+        if (remoteData.teacherAttendance && Array.isArray(remoteData.teacherAttendance)) {
           setTeacherAttendanceRecords(remoteData.teacherAttendance);
           setStoredData('teacher_attendance', remoteData.teacherAttendance);
         }
-        if (remoteData.examResults && remoteData.examResults.length > 0) {
+        if (remoteData.examResults && Array.isArray(remoteData.examResults)) {
           setExamResults(remoteData.examResults);
           setStoredData('exam_results', remoteData.examResults);
         }
