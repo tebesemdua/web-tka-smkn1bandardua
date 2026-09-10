@@ -111,6 +111,7 @@ export default function Home() {
     fetchAllDataFromRedis().then((remoteData) => {
       if (remoteData) {
         // FIX: Izinkan array kosong [] sebagai data valid agar hapus semua bisa sinkron ke semua perangkat
+        // FIX JADWAL: tambahkan activeClasses agar edit jadwal sinkron cross-device
         if (remoteData.students && Array.isArray(remoteData.students)) {
           setStudents(remoteData.students);
           setStoredData('students', remoteData.students);
@@ -118,6 +119,10 @@ export default function Home() {
         if (remoteData.teachers && Array.isArray(remoteData.teachers)) {
           setTeachers(remoteData.teachers);
           setStoredData('teachers', remoteData.teachers);
+        }
+        if (remoteData.activeClasses && Array.isArray(remoteData.activeClasses)) {
+          setActiveClasses(remoteData.activeClasses);
+          setStoredData('active_classes', remoteData.activeClasses);
         }
         if (remoteData.attendance && Array.isArray(remoteData.attendance)) {
           setAttendanceRecords(remoteData.attendance);

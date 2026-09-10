@@ -61,6 +61,7 @@ export async function saveToRedis(key: string, data: any, action: 'set' | 'appen
 // 3. Helper khusus untuk masing-masing entitas data
 export const syncRedis = {
   saveStudents: (students: Student[]) => saveToRedis('students', students),
+  saveTeachers: (teachers: Teacher[]) => saveToRedis('teachers', teachers),
   saveAttendance: (records: AttendanceRecord[]) => saveToRedis('attendance', records),
   saveTeacherAttendance: (records: TeacherAttendanceRecord[]) => saveToRedis('teacher_attendance', records),
   saveExamResults: (results: ExamResult[]) => saveToRedis('exam_results', results),

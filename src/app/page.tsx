@@ -142,6 +142,10 @@ export default function Home() {
           setTeachers(remoteData.teachers);
           setStoredData('teachers', remoteData.teachers);
         }
+        if (remoteData.activeClasses && Array.isArray(remoteData.activeClasses)) {
+          setActiveClasses(remoteData.activeClasses);
+          setStoredData('active_classes', remoteData.activeClasses);
+        }
         if (remoteData.attendance && Array.isArray(remoteData.attendance)) {
           setAttendanceRecords(remoteData.attendance);
           setStoredData('attendance', remoteData.attendance);
@@ -296,6 +300,20 @@ export default function Home() {
     syncRedis.saveActiveClasses(updated);
   };
 
+  const handleEditActiveClass = (updatedClass: ActiveClass) => {
+    const updated = activeClasses.map(c => c.id === updatedClass.id ? updatedClass : c);
+    setActiveClasses(updated);
+    setStoredData('active_classes', updated);
+    syncRedis.saveActiveClasses(updated);
+  };
+
+  const handleDeleteActiveClass = (classId: string) => {
+    const updated = activeClasses.filter(c => c.id !== classId);
+    setActiveClasses(updated);
+    setStoredData('active_classes', updated);
+    syncRedis.saveActiveClasses(updated);
+  };
+
   const handleSaveExamResult = (result: ExamResult) => {
     const updated = [result, ...examResults];
     setExamResults(updated);
@@ -443,6 +461,8 @@ export default function Home() {
               teachers={teachers}
               currentUser={currentUser}
               onAddActiveClass={handleAddActiveClass}
+              onEditActiveClass={handleEditActiveClass}
+              onDeleteActiveClass={handleDeleteActiveClass}
             />
 
             {/* Visitor & Traffic Analytics Chart */}
@@ -547,6 +567,8 @@ export default function Home() {
               teachers={teachers}
               currentUser={currentUser}
               onAddActiveClass={handleAddActiveClass}
+              onEditActiveClass={handleEditActiveClass}
+              onDeleteActiveClass={handleDeleteActiveClass}
             />
             <VisitorAnalyticsChart stats={visitorStats} />
           </div>
