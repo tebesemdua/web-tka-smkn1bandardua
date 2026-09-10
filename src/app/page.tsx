@@ -138,6 +138,10 @@ export default function Home() {
           setStudents(remoteData.students);
           setStoredData('students', remoteData.students);
         }
+        if (remoteData.teachers && Array.isArray(remoteData.teachers)) {
+          setTeachers(remoteData.teachers);
+          setStoredData('teachers', remoteData.teachers);
+        }
         if (remoteData.attendance && Array.isArray(remoteData.attendance)) {
           setAttendanceRecords(remoteData.attendance);
           setStoredData('attendance', remoteData.attendance);
