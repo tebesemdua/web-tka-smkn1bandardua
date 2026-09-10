@@ -110,19 +110,24 @@ export default function Home() {
     // Background fetch from Upstash Redis Cloud
     fetchAllDataFromRedis().then((remoteData) => {
       if (remoteData) {
-        if (remoteData.students && remoteData.students.length > 0) {
+        // FIX: Izinkan array kosong [] sebagai data valid agar hapus semua bisa sinkron ke semua perangkat
+        if (remoteData.students && Array.isArray(remoteData.students)) {
           setStudents(remoteData.students);
           setStoredData('students', remoteData.students);
         }
-        if (remoteData.attendance && remoteData.attendance.length > 0) {
+        if (remoteData.teachers && Array.isArray(remoteData.teachers)) {
+          setTeachers(remoteData.teachers);
+          setStoredData('teachers', remoteData.teachers);
+        }
+        if (remoteData.attendance && Array.isArray(remoteData.attendance)) {
           setAttendanceRecords(remoteData.attendance);
           setStoredData('attendance', remoteData.attendance);
         }
-        if (remoteData.teacherAttendance && remoteData.teacherAttendance.length > 0) {
+        if (remoteData.teacherAttendance && Array.isArray(remoteData.teacherAttendance)) {
           setTeacherAttendanceRecords(remoteData.teacherAttendance);
           setStoredData('teacher_attendance', remoteData.teacherAttendance);
         }
-        if (remoteData.examResults && remoteData.examResults.length > 0) {
+        if (remoteData.examResults && Array.isArray(remoteData.examResults)) {
           setExamResults(remoteData.examResults);
           setStoredData('exam_results', remoteData.examResults);
         }
@@ -153,6 +158,26 @@ export default function Home() {
     syncRedis.saveStudents(updated);
   };
 
+  const handleBulkDeleteStudents = (ids: string[]) => {
+    const updated = students.filter(s => !ids.includes(s.id));
+    setStudents(updated);
+    setStoredData('students', updated);
+    syncRedis.saveStudents(updated);
+  };
+
+  const handleDeleteAllFilteredStudents = (filteredIds: string[]) => {
+    const updated = students.filter(s => !filteredIds.includes(s.id));
+    setStudents(updated);
+    setStoredData('students', updated);
+    syncRedis.saveStudents(updated);
+  };
+
+  const handleClearAllStudentsCloud = () => {
+    setStudents([]);
+    setStoredData('students', []);
+    syncRedis.saveStudents([]);
+  };
+
   const handleImportStudents = (newStudents: Student[]) => {
     const updated = [...students, ...newStudents];
     setStudents(updated);
@@ -181,6 +206,26 @@ export default function Home() {
     setTeachers(updated);
     setStoredData('teachers', updated);
     syncRedis.saveTeachers(updated);
+  };
+
+  const handleBulkDeleteTeachers = (ids: string[]) => {
+    const updated = teachers.filter(t => !ids.includes(t.id));
+    setTeachers(updated);
+    setStoredData('teachers', updated);
+    syncRedis.saveTeachers(updated);
+  };
+
+  const handleDeleteAllFilteredTeachers = (filteredIds: string[]) => {
+    const updated = teachers.filter(t => !filteredIds.includes(t.id));
+    setTeachers(updated);
+    setStoredData('teachers', updated);
+    syncRedis.saveTeachers(updated);
+  };
+
+  const handleClearAllTeachersCloud = () => {
+    setTeachers([]);
+    setStoredData('teachers', []);
+    syncRedis.saveTeachers([]);
   };
 
   // --- EDIT PROFIL GURU (OLEH GURU SENDIRI) ---
@@ -411,7 +456,7 @@ export default function Home() {
           </div>
         )}
 
-        {/* TAB 3: DATA & ABSENSI SISWA (ADMIN FULL CRUD) */}
+        {/* TAB 3: DATA & ABSENSI SISWA (ADMIN FULL CRUD + BULK) */}
         {activeTab === 'absensi-siswa' && (
           <div className="animate-fadeIn">
             <AttendanceSiswaSection
@@ -423,11 +468,14 @@ export default function Home() {
               onAddStudent={handleAddStudent}
               onEditStudent={handleEditStudent}
               onDeleteStudent={handleDeleteStudent}
+              onBulkDeleteStudents={handleBulkDeleteStudents}
+              onDeleteAllFiltered={handleDeleteAllFilteredStudents}
+              onClearAllCloud={handleClearAllStudentsCloud}
             />
           </div>
         )}
 
-        {/* TAB 4: MASTER 31 GURU & ABSENSI (ADMIN FULL CRUD & GURU PROFILE EDIT) */}
+        {/* TAB 4: MASTER 31 GURU & ABSENSI (ADMIN FULL CRUD + BULK & GURU PROFILE EDIT) */}
         {activeTab === 'absensi-guru' && (
           <div className="animate-fadeIn">
             <AttendanceGuruSection
@@ -438,6 +486,9 @@ export default function Home() {
               onAddTeacher={handleAddTeacher}
               onEditTeacher={handleEditTeacher}
               onDeleteTeacher={handleDeleteTeacher}
+              onBulkDeleteTeachers={handleBulkDeleteTeachers}
+              onDeleteAllFiltered={handleDeleteAllFilteredTeachers}
+              onClearAllCloud={handleClearAllTeachersCloud}
               onOpenEditProfile={() => setIsEditProfileOpen(true)}
             />
           </div>
