@@ -25,7 +25,11 @@ import {
   ShieldCheck,
   Phone,
   Mail,
-  GraduationCap
+  GraduationCap,
+  CheckSquare,
+  Square,
+  RefreshCw,
+  Trash
 } from 'lucide-react';
 import { Student, AttendanceRecord, User } from '../types';
 import { UserAvatar } from './UserAvatar';
@@ -39,6 +43,9 @@ interface AttendanceSiswaSectionProps {
   onAddStudent?: (student: Student) => void;
   onEditStudent?: (student: Student) => void;
   onDeleteStudent?: (studentId: string) => void;
+  onBulkDeleteStudents?: (ids: string[]) => void;
+  onDeleteAllFiltered?: (filteredIds: string[]) => void;
+  onClearAllCloud?: () => void;
 }
 
 export const AttendanceSiswaSection: React.FC<AttendanceSiswaSectionProps> = ({
@@ -49,7 +56,10 @@ export const AttendanceSiswaSection: React.FC<AttendanceSiswaSectionProps> = ({
   onImportStudents,
   onAddStudent,
   onEditStudent,
-  onDeleteStudent
+  onDeleteStudent,
+  onBulkDeleteStudents,
+  onDeleteAllFiltered,
+  onClearAllCloud
 }) => {
   const [activeSubTab, setActiveSubTab] = useState<'master-siswa' | 'absensi'>('master-siswa');
   const [selectedClassId, setSelectedClassId] = useState<string>('all');
@@ -69,6 +79,11 @@ export const AttendanceSiswaSection: React.FC<AttendanceSiswaSectionProps> = ({
   const [showAddStudentModal, setShowAddStudentModal] = useState(false);
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
   const [deleteConfirmStudent, setDeleteConfirmStudent] = useState<Student | null>(null);
+
+  // Bulk Admin States
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncResult, setSyncResult] = useState('');
 
   // Form State for Add/Edit Student
   const [formNisn, setFormNisn] = useState('');
@@ -98,6 +113,84 @@ export const AttendanceSiswaSection: React.FC<AttendanceSiswaSectionProps> = ({
     const matchesSearch = s.name.toLowerCase().includes(searchQuery.toLowerCase()) || s.nisn.includes(searchQuery);
     return matchesClass && matchesMajor && matchesSearch;
   });
+
+  // Bulk selection helpers
+  const toggleSelectOne = (id: string) => {
+    const next = new Set(selectedIds);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    setSelectedIds(next);
+  };
+
+  const toggleSelectAllFiltered = () => {
+    if (selectedIds.size === filteredStudents.length && filteredStudents.length > 0) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filteredStudents.map(s => s.id)));
+    }
+  };
+
+  const handleBulkDelete = () => {
+    if (selectedIds.size === 0) return;
+    if (!confirm(`Hapus ${selectedIds.size} siswa terpilih? Tindakan ini sinkron ke semua perangkat.`)) return;
+    const ids = Array.from(selectedIds);
+    if (onBulkDeleteStudents) {
+      onBulkDeleteStudents(ids);
+    } else {
+      ids.forEach(id => onDeleteStudent && onDeleteStudent(id));
+    }
+    setSelectedIds(new Set());
+    setSavedFeedback(`${ids.length} siswa terpilih berhasil dihapus dan sinkron cloud!`);
+    setTimeout(() => setSavedFeedback(''), 3000);
+  };
+
+  const handleDeleteAllFiltered = () => {
+    if (filteredStudents.length === 0) return;
+    if (!confirm(`Hapus SEMUA ${filteredStudents.length} siswa yang sedang difilter? (mis: ${selectedClassId}) Ini akan sinkron ke semua perangkat!`)) return;
+    const ids = filteredStudents.map(s => s.id);
+    if (onDeleteAllFiltered) {
+      onDeleteAllFiltered(ids);
+    } else if (onBulkDeleteStudents) {
+      onBulkDeleteStudents(ids);
+    }
+    setSelectedIds(new Set());
+    setSavedFeedback(`${ids.length} siswa terfilter dihapus dari cloud!`);
+    setTimeout(() => setSavedFeedback(''), 3000);
+  };
+
+  const handleForceSync = async () => {
+    setIsSyncing(true);
+    setSyncResult('');
+    try {
+      const res = await fetch('/api/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'force_sync', key: 'students', data: students })
+      });
+      const json = await res.json();
+      if (json.success) {
+        setSyncResult(`✅ Sync berhasil: ${students.length} siswa terkirim ke database cloud. Data kini sinkron di semua device.`);
+        setSavedFeedback(`Sync ${students.length} siswa ke database berhasil!`);
+      } else {
+        setSyncResult(`❌ Gagal sync: ${json.error || 'unknown'}`);
+      }
+    } catch (e: any) {
+      setSyncResult(`❌ Error sync: ${e.message}`);
+    } finally {
+      setIsSyncing(false);
+      setTimeout(() => setSyncResult(''), 5000);
+      setTimeout(() => setSavedFeedback(''), 3000);
+    }
+  };
+
+  const handleClearAllCloud = () => {
+    if (!confirm(`HAPUS SEMUA ${students.length} data siswa dari DATABASE CLOUD? Semua perangkat akan kosong. Tindakan tidak dapat dibatalkan!`)) return;
+    if (onClearAllCloud) {
+      onClearAllCloud();
+      setSelectedIds(new Set());
+      setSavedFeedback(`Semua ${students.length} siswa dihapus dari cloud! Sinkron ke semua device.`);
+      setTimeout(() => setSavedFeedback(''), 3000);
+    }
+  };
 
   // Get or initialize status for a student
   const getStudentStatus = (studentId: string) => {
@@ -491,39 +584,105 @@ export const AttendanceSiswaSection: React.FC<AttendanceSiswaSectionProps> = ({
         </div>
       </div>
 
-      {/* SUB-TAB 1: MASTER DATA SISWA (ADMIN BISA TAMBAH, EDIT, HAPUS) */}
+      {/* SUB-TAB 1: MASTER DATA SISWA (ADMIN BISA TAMBAH, EDIT, HAPUS + BULK) */}
       {activeSubTab === 'master-siswa' && (
         <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-200/80 space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
-            <div>
-              <h4 className="text-base font-bold text-slate-900">
-                Daftar Lengkap Profil Siswa ({filteredStudents.length} Siswa Terpilih)
-              </h4>
-              <p className="text-xs text-slate-500">
-                {currentUser.role === 'admin' 
-                  ? '🛡️ Mode Administrator: Anda memiliki hak akses penuh untuk menambah, mengedit profil, dan menghapus siswa.' 
-                  : 'Daftar data 160 siswa bimbingan belajar TKA 2026 SMK Negeri 1 Bandar Dua.'}
-              </p>
+          <div className="flex flex-col gap-3 pb-3 border-b border-slate-100">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h4 className="text-base font-bold text-slate-900">
+                  Daftar Lengkap Profil Siswa ({filteredStudents.length} Siswa Terpilih)
+                </h4>
+                <p className="text-xs text-slate-500">
+                  {currentUser.role === 'admin' 
+                    ? '🛡️ Mode Administrator: Pilih Semua • Hapus Terpilih • Sync ke Database (sinkron semua device)' 
+                    : 'Daftar data siswa bimbingan belajar TKA 2026 SMK Negeri 1 Bandar Dua.'}
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleDownloadCurrentAttendance}
+                  className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 rounded-xl text-xs font-bold border border-emerald-300 flex items-center gap-1.5 transition-colors cursor-pointer"
+                >
+                  <Download className="w-3.5 h-3.5 text-emerald-700" />
+                  <span>Download Absensi (.xlsx)</span>
+                </button>
+                <span className="text-xs font-bold text-emerald-800 bg-emerald-50 px-3 py-1.5 rounded-full border border-emerald-200">
+                  Total Database: {students.length} Siswa
+                </span>
+              </div>
             </div>
 
-            <div className="flex items-center gap-2">
-              <button
-                onClick={handleDownloadCurrentAttendance}
-                className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 rounded-xl text-xs font-bold border border-emerald-300 flex items-center gap-1.5 transition-colors cursor-pointer"
-              >
-                <Download className="w-3.5 h-3.5 text-emerald-700" />
-                <span>Download Absensi (.xlsx)</span>
-              </button>
-              <span className="text-xs font-bold text-emerald-800 bg-emerald-50 px-3 py-1.5 rounded-full border border-emerald-200">
-                Total Database: {students.length} Siswa
-              </span>
-            </div>
+            {/* BULK ADMIN TOOLBAR - BARU */}
+            {currentUser.role === 'admin' && (
+              <div className="flex flex-wrap items-center gap-2 p-3 bg-slate-50 rounded-xl border border-slate-200">
+                <button
+                  onClick={toggleSelectAllFiltered}
+                  className="px-3 py-1.5 bg-white hover:bg-slate-100 text-slate-800 rounded-lg text-xs font-bold border border-slate-300 flex items-center gap-1.5 cursor-pointer"
+                  title="Pilih semua yang terfilter"
+                >
+                  {selectedIds.size === filteredStudents.length && filteredStudents.length > 0 ? <CheckSquare className="w-4 h-4 text-emerald-600" /> : <Square className="w-4 h-4" />}
+                  <span>Pilih Semua ({filteredStudents.length})</span>
+                </button>
+
+                <span className="text-xs font-bold text-slate-600 px-2">
+                  {selectedIds.size} terpilih
+                </span>
+
+                <button
+                  onClick={handleBulkDelete}
+                  disabled={selectedIds.size === 0}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 border transition-colors ${selectedIds.size > 0 ? 'bg-red-600 hover:bg-red-700 text-white border-red-600 cursor-pointer' : 'bg-slate-200 text-slate-400 border-slate-200 cursor-not-allowed'}`}
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Hapus Terpilih ({selectedIds.size})</span>
+                </button>
+
+                <button
+                  onClick={handleDeleteAllFiltered}
+                  disabled={filteredStudents.length === 0}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 border transition-colors ${filteredStudents.length > 0 ? 'bg-orange-600 hover:bg-orange-700 text-white border-orange-600 cursor-pointer' : 'bg-slate-200 text-slate-400 border-slate-200 cursor-not-allowed'}`}
+                >
+                  <Trash className="w-3.5 h-3.5" />
+                  <span>Hapus Filter ({filteredStudents.length})</span>
+                </button>
+
+                <button
+                  onClick={handleForceSync}
+                  disabled={isSyncing}
+                  className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 border border-blue-600 shadow-sm cursor-pointer disabled:opacity-50"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
+                  <span>{isSyncing ? 'Syncing...' : `Sync ${students.length} ke Database`}</span>
+                </button>
+
+                <button
+                  onClick={handleClearAllCloud}
+                  className="px-3 py-1.5 bg-slate-900 hover:bg-black text-white rounded-lg text-xs font-bold flex items-center gap-1.5 border border-slate-900 cursor-pointer"
+                >
+                  <Trash2 className="w-3.5 h-3.5 text-red-300" />
+                  <span>Hapus Semua Cloud</span>
+                </button>
+
+                {syncResult && (
+                  <span className="text-xs font-bold px-2 py-1 bg-white rounded border border-slate-200">{syncResult}</span>
+                )}
+              </div>
+            )}
           </div>
 
           <div className="overflow-x-auto rounded-2xl border border-slate-200">
             <table className="w-full text-left border-collapse text-xs">
               <thead>
                 <tr className="bg-slate-100/90 text-slate-700 font-bold border-b border-slate-200">
+                  {currentUser.role === 'admin' && (
+                    <th className="p-3.5 w-12 text-center">
+                      <button onClick={toggleSelectAllFiltered} className="cursor-pointer">
+                        {selectedIds.size === filteredStudents.length && filteredStudents.length > 0 ? <CheckSquare className="w-5 h-5 text-emerald-600 mx-auto" /> : <Square className="w-5 h-5 text-slate-400 mx-auto" />}
+                      </button>
+                    </th>
+                  )}
                   <th className="p-3.5">ID & No</th>
                   <th className="p-3.5">Profil Siswa</th>
                   <th className="p-3.5">NIS Dummy & Akun Email</th>
@@ -537,7 +696,14 @@ export const AttendanceSiswaSection: React.FC<AttendanceSiswaSectionProps> = ({
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {filteredStudents.map((s, idx) => (
-                  <tr key={s.id} className="hover:bg-slate-50/80 transition-colors">
+                  <tr key={s.id} className={`hover:bg-slate-50/80 transition-colors ${selectedIds.has(s.id) ? 'bg-emerald-50/50' : ''}`}>
+                    {currentUser.role === 'admin' && (
+                      <td className="p-3.5 text-center">
+                        <button onClick={() => toggleSelectOne(s.id)} className="cursor-pointer">
+                          {selectedIds.has(s.id) ? <CheckSquare className="w-5 h-5 text-emerald-600 mx-auto" /> : <Square className="w-5 h-5 text-slate-300 mx-auto" />}
+                        </button>
+                      </td>
+                    )}
                     <td className="p-3.5">
                       <div className="font-mono font-extrabold text-slate-800">{s.id}</div>
                       <div className="text-[10px] text-slate-400">#{idx + 1}</div>

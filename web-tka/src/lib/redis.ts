@@ -5,13 +5,17 @@ import { Redis } from '@upstash/redis';
 // 2. Upstash Redis Marketplace: UPSTASH_REDIS_REST_URL & UPSTASH_REDIS_REST_TOKEN
 
 const redisUrl = 
+  process.env.STORAGE_REDIS_REST_URL ||
   process.env.KV_REST_API_URL || 
   process.env.UPSTASH_REDIS_REST_URL || 
+  process.env.REDIS_URL ||
   '';
 
 const redisToken = 
+  process.env.STORAGE_REDIS_REST_TOKEN ||
   process.env.KV_REST_API_TOKEN || 
   process.env.UPSTASH_REDIS_REST_TOKEN || 
+  process.env.REDIS_TOKEN ||
   '';
 
 export const isRedisConfigured = Boolean(redisUrl && redisToken && redisUrl.startsWith('http'));

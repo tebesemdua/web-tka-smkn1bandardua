@@ -21,7 +21,11 @@ import {
   UserCog,
   Phone,
   Mail,
-  ShieldCheck
+  ShieldCheck,
+  CheckSquare,
+  Square,
+  RefreshCw,
+  Trash
 } from 'lucide-react';
 import { Teacher, TeacherAttendanceRecord, User } from '../types';
 import { UserAvatar } from './UserAvatar';
@@ -34,6 +38,9 @@ interface AttendanceGuruSectionProps {
   onAddTeacher?: (teacher: Teacher) => void;
   onEditTeacher?: (teacher: Teacher) => void;
   onDeleteTeacher?: (teacherId: string) => void;
+  onBulkDeleteTeachers?: (ids: string[]) => void;
+  onDeleteAllFiltered?: (filteredIds: string[]) => void;
+  onClearAllCloud?: () => void;
   onOpenEditProfile?: () => void;
 }
 
@@ -45,6 +52,9 @@ export const AttendanceGuruSection: React.FC<AttendanceGuruSectionProps> = ({
   onAddTeacher,
   onEditTeacher,
   onDeleteTeacher,
+  onBulkDeleteTeachers,
+  onDeleteAllFiltered,
+  onClearAllCloud,
   onOpenEditProfile
 }) => {
   const [activeSubTab, setActiveSubTab] = useState<'master-guru' | 'presensi-jurnal'>('master-guru');
@@ -61,6 +71,9 @@ export const AttendanceGuruSection: React.FC<AttendanceGuruSectionProps> = ({
   const [notes, setNotes] = useState('Siswa sangat aktif dan seluruh materi tersampaikan sesuai target silabus malam hari.');
   const [showSuccessToast, setShowSuccessToast] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncResult, setSyncResult] = useState('');
 
   // Admin Modals for Add/Edit/Delete Teacher
   const [showAddTeacherModal, setShowAddTeacherModal] = useState(false);
@@ -112,6 +125,78 @@ export const AttendanceGuruSection: React.FC<AttendanceGuruSectionProps> = ({
     r.subject.toLowerCase().includes(searchQuery.toLowerCase()) ||
     r.classId.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  // Bulk helpers guru
+  const toggleSelectOne = (id: string) => {
+    const next = new Set(selectedIds);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    setSelectedIds(next);
+  };
+
+  const toggleSelectAllFiltered = () => {
+    if (selectedIds.size === filteredTeachers.length && filteredTeachers.length > 0) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filteredTeachers.map(t => t.id)));
+    }
+  };
+
+  const handleBulkDelete = () => {
+    if (selectedIds.size === 0) return;
+    if (!confirm(`Hapus ${selectedIds.size} guru terpilih? Sinkron ke semua device.`)) return;
+    const ids = Array.from(selectedIds);
+    if (onBulkDeleteTeachers) onBulkDeleteTeachers(ids);
+    else ids.forEach(id => onDeleteTeacher && onDeleteTeacher(id));
+    setSelectedIds(new Set());
+    setShowSuccessToast(`${ids.length} guru terpilih dihapus & sinkron cloud!`);
+    setTimeout(() => setShowSuccessToast(''), 3000);
+  };
+
+  const handleDeleteAllFiltered = () => {
+    if (filteredTeachers.length === 0) return;
+    if (!confirm(`Hapus SEMUA ${filteredTeachers.length} guru yang terfilter?`)) return;
+    const ids = filteredTeachers.map(t => t.id);
+    if (onDeleteAllFiltered) onDeleteAllFiltered(ids);
+    else if (onBulkDeleteTeachers) onBulkDeleteTeachers(ids);
+    setSelectedIds(new Set());
+    setShowSuccessToast(`${ids.length} guru terfilter dihapus dari cloud!`);
+    setTimeout(() => setShowSuccessToast(''), 3000);
+  };
+
+  const handleForceSync = async () => {
+    setIsSyncing(true);
+    setSyncResult('');
+    try {
+      const res = await fetch('/api/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'force_sync', key: 'teachers', data: teachers })
+      });
+      const json = await res.json();
+      if (json.success) {
+        setSyncResult(`✅ Sync ${teachers.length} guru ke cloud berhasil!`);
+        setShowSuccessToast(`Sync ${teachers.length} guru ke database berhasil!`);
+      } else {
+        setSyncResult(`❌ Gagal: ${json.error}`);
+      }
+    } catch (e: any) {
+      setSyncResult(`❌ Error: ${e.message}`);
+    } finally {
+      setIsSyncing(false);
+      setTimeout(() => setSyncResult(''), 5000);
+      setTimeout(() => setShowSuccessToast(''), 3000);
+    }
+  };
+
+  const handleClearAllCloud = () => {
+    if (!confirm(`HAPUS SEMUA ${teachers.length} guru dari CLOUD? Semua device kosong!`)) return;
+    if (onClearAllCloud) {
+      onClearAllCloud();
+      setSelectedIds(new Set());
+      setShowSuccessToast(`Semua ${teachers.length} guru dihapus dari cloud!`);
+      setTimeout(() => setShowSuccessToast(''), 3000);
+    }
+  };
 
   // Open Add Teacher Modal
   const openAddTeacherModal = () => {
@@ -290,30 +375,84 @@ export const AttendanceGuruSection: React.FC<AttendanceGuruSectionProps> = ({
         </div>
       </div>
 
-      {/* SUB-TAB 1: MASTER 31 GURU LENGKAP (ADMIN BISA TAMBAH, EDIT, HAPUS) */}
+      {/* SUB-TAB 1: MASTER 31 GURU LENGKAP (ADMIN BISA TAMBAH, EDIT, HAPUS + BULK) */}
       {activeSubTab === 'master-guru' && (
         <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-200/80 space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
-            <div>
-              <h4 className="text-base font-bold text-slate-900">
-                Daftar Lengkap 31 Guru Pengajar SMKN 1 Bandar Dua ({filteredTeachers.length} Guru Ditampilkan)
-              </h4>
-              <p className="text-xs text-slate-500">
-                {currentUser.role === 'admin'
-                  ? '🛡️ Mode Admin: Tambah, edit biodata guru, atau hapus data pengampu bimbingan.'
-                  : 'Guru pengampu bimbingan les malam TKA 2026 (TBSM, TKRO, TP, DPB, TKJ, Matematika, B. Indonesia, B. Inggris).'}
-              </p>
+          <div className="flex flex-col gap-3 pb-3 border-b border-slate-100">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h4 className="text-base font-bold text-slate-900">
+                  Daftar Lengkap 31 Guru Pengajar SMKN 1 Bandar Dua ({filteredTeachers.length} Guru Ditampilkan)
+                </h4>
+                <p className="text-xs text-slate-500">
+                  {currentUser.role === 'admin'
+                    ? '🛡️ Mode Admin: Pilih Semua • Hapus Terpilih • Sync ke Database (sinkron semua device)'
+                    : 'Guru pengampu bimbingan les malam TKA 2026 (TBSM, TKRO, TP, DPB, TKJ, Matematika, B. Indonesia, B. Inggris).'}
+                </p>
+              </div>
+
+              <span className="text-xs font-bold text-emerald-800 bg-emerald-50 px-3 py-1.5 rounded-full border border-emerald-200 self-start sm:self-auto">
+                Total {teachers.length} Guru Pengajar
+              </span>
             </div>
 
-            <span className="text-xs font-bold text-emerald-800 bg-emerald-50 px-3 py-1.5 rounded-full border border-emerald-200 self-start sm:self-auto">
-              Total 31 Guru Pengajar
-            </span>
+            {currentUser.role === 'admin' && (
+              <div className="flex flex-wrap items-center gap-2 p-3 bg-slate-50 rounded-xl border border-slate-200">
+                <button
+                  onClick={toggleSelectAllFiltered}
+                  className="px-3 py-1.5 bg-white hover:bg-slate-100 text-slate-800 rounded-lg text-xs font-bold border border-slate-300 flex items-center gap-1.5 cursor-pointer"
+                >
+                  {selectedIds.size === filteredTeachers.length && filteredTeachers.length > 0 ? <CheckSquare className="w-4 h-4 text-emerald-600" /> : <Square className="w-4 h-4" />}
+                  <span>Pilih Semua ({filteredTeachers.length})</span>
+                </button>
+                <span className="text-xs font-bold text-slate-600 px-2">{selectedIds.size} terpilih</span>
+                <button
+                  onClick={handleBulkDelete}
+                  disabled={selectedIds.size === 0}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 border ${selectedIds.size > 0 ? 'bg-red-600 hover:bg-red-700 text-white border-red-600 cursor-pointer' : 'bg-slate-200 text-slate-400 border-slate-200 cursor-not-allowed'}`}
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Hapus Terpilih ({selectedIds.size})</span>
+                </button>
+                <button
+                  onClick={handleDeleteAllFiltered}
+                  disabled={filteredTeachers.length === 0}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 border ${filteredTeachers.length > 0 ? 'bg-orange-600 hover:bg-orange-700 text-white border-orange-600 cursor-pointer' : 'bg-slate-200 text-slate-400 border-slate-200 cursor-not-allowed'}`}
+                >
+                  <Trash className="w-3.5 h-3.5" />
+                  <span>Hapus Filter ({filteredTeachers.length})</span>
+                </button>
+                <button
+                  onClick={handleForceSync}
+                  disabled={isSyncing}
+                  className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 border border-blue-600 cursor-pointer disabled:opacity-50"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
+                  <span>{isSyncing ? 'Syncing...' : `Sync ${teachers.length} ke Database`}</span>
+                </button>
+                <button
+                  onClick={handleClearAllCloud}
+                  className="px-3 py-1.5 bg-slate-900 hover:bg-black text-white rounded-lg text-xs font-bold flex items-center gap-1.5 border border-slate-900 cursor-pointer"
+                >
+                  <Trash2 className="w-3.5 h-3.5 text-red-300" />
+                  <span>Hapus Semua Cloud</span>
+                </button>
+                {syncResult && <span className="text-xs font-bold px-2 py-1 bg-white rounded border">{syncResult}</span>}
+              </div>
+            )}
           </div>
 
           <div className="overflow-x-auto rounded-2xl border border-slate-200">
             <table className="w-full text-left border-collapse text-xs">
               <thead>
                 <tr className="bg-slate-100/90 text-slate-700 font-bold border-b border-slate-200">
+                  {currentUser.role === 'admin' && (
+                    <th className="p-3.5 w-12 text-center">
+                      <button onClick={toggleSelectAllFiltered} className="cursor-pointer">
+                        {selectedIds.size === filteredTeachers.length && filteredTeachers.length > 0 ? <CheckSquare className="w-5 h-5 text-emerald-600 mx-auto" /> : <Square className="w-5 h-5 text-slate-400 mx-auto" />}
+                      </button>
+                    </th>
+                  )}
                   <th className="p-3.5">No</th>
                   <th className="p-3.5">Profil Guru</th>
                   <th className="p-3.5">NIP / NUPTK & Belajar.id</th>
@@ -329,7 +468,14 @@ export const AttendanceGuruSection: React.FC<AttendanceGuruSectionProps> = ({
                 {filteredTeachers.map((t, idx) => {
                   const isCurrentLoggedInGuru = currentUser.role === 'guru' && (currentUser.email === t.email || currentUser.id === t.id);
                   return (
-                    <tr key={t.id} className="hover:bg-slate-50/80 transition-colors">
+                    <tr key={t.id} className={`hover:bg-slate-50/80 transition-colors ${selectedIds.has(t.id) ? 'bg-emerald-50/50' : ''}`}>
+                      {currentUser.role === 'admin' && (
+                        <td className="p-3.5 text-center">
+                          <button onClick={() => toggleSelectOne(t.id)} className="cursor-pointer">
+                            {selectedIds.has(t.id) ? <CheckSquare className="w-5 h-5 text-emerald-600 mx-auto" /> : <Square className="w-5 h-5 text-slate-300 mx-auto" />}
+                          </button>
+                        </td>
+                      )}
                       <td className="p-3.5 font-bold text-slate-500">{idx + 1}</td>
                       <td className="p-3.5">
                         <div className="flex items-center gap-3">
