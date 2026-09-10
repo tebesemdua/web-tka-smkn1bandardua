@@ -1,20 +1,29 @@
 import { Redis } from '@upstash/redis';
 
-// Support semua varian prefix Vercel (KV, UPSTASH_REDIS, STORAGE)
+// Mendukung konfigurasi otomatis Vercel Storage:
+// 1. Vercel KV: KV_REST_API_URL & KV_REST_API_TOKEN
+// 2. Upstash Redis Marketplace: UPSTASH_REDIS_REST_URL & UPSTASH_REDIS_REST_TOKEN
+
+// Support semua varian prefix Vercel (KV, UPSTASH_REDIS, STORAGE, dll) - FIX untuk bug STORAGE tidak bisa dihapus
 const redisUrl = 
+  process.env.STORAGE_REDIS_REST_URL ||
   process.env.KV_REST_API_URL || 
   process.env.UPSTASH_REDIS_REST_URL || 
   process.env.STORAGE_REST_API_URL ||
   process.env.REDIS_REST_API_URL ||
   process.env.UPSTASH_KV_REST_API_URL ||
+  process.env.REDIS_URL ||
+  process.env.KV_URL?.replace('redis://', 'https://') || // fallback
   '';
 
 const redisToken = 
+  process.env.STORAGE_REDIS_REST_TOKEN ||
   process.env.KV_REST_API_TOKEN || 
   process.env.UPSTASH_REDIS_REST_TOKEN || 
   process.env.STORAGE_REST_API_TOKEN ||
   process.env.REDIS_REST_API_TOKEN ||
   process.env.UPSTASH_KV_REST_API_TOKEN ||
+  process.env.REDIS_TOKEN ||
   '';
 
 export const isRedisConfigured = Boolean(redisUrl && redisToken && redisUrl.startsWith('http'));
